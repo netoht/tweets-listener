@@ -1,4 +1,4 @@
-package com.github.netoht.tweets.listener;
+package com.github.netoht.tweets.listener.domain;
 
 import static org.apache.commons.lang3.StringUtils.stripAccents;
 

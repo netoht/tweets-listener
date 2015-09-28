@@ -1,7 +1,5 @@
 package com.github.netoht.tweets.listener;
 
-import java.io.File;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -15,11 +13,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.core.env.Environment;
 import org.springframework.mail.MailSender;
 import org.springframework.mail.SimpleMailMessage;
 
+import com.codahale.metrics.MetricRegistry;
+import com.github.netoht.tweets.listener.domain.TweetMessage;
 import com.google.common.collect.Lists;
-import com.google.common.io.Files;
 import com.twitter.hbc.ClientBuilder;
 import com.twitter.hbc.core.Client;
 import com.twitter.hbc.core.Constants;
@@ -37,7 +37,13 @@ public class TweetsListenerApplication implements CommandLineRunner {
     @Autowired
     private MailSender mailSender;
 
-    @Value("${spring.mail.to}")
+    @Autowired
+    private Environment env;
+
+    @Autowired
+    private MetricRegistry metrics;
+
+    @Value("${spring.boot.admin.nofify.to}")
     private String mailTo;
 
     private final Logger log = LoggerFactory.getLogger(getClass());
@@ -87,15 +93,16 @@ public class TweetsListenerApplication implements CommandLineRunner {
         hosebirdClient.connect();
 
         while (!hosebirdClient.isDone()) {
-            String rawMessage = Files.readFirstLine(new File(getClass().getClassLoader().getResource("result.json").getFile()), StandardCharsets.UTF_8);
+            String rawMessage = msgQueue.take();
 
-            //String rawMessage = msgQueue.take();
+            metrics.meter("received.messages").mark();
 
-            log.info("message received={}", rawMessage);
+            log.info("received message={}", rawMessage);
             TweetMessage tweetMessage = new TweetMessage(rawMessage);
             String message = tweetMessage.getTextWithTerms(Arrays.asList("xbox", "one"));
 
             if (StringUtils.isNotBlank(message)) {
+                metrics.meter("received.messages.ok").mark();
                 sendMail(message);
             }
         }
@@ -104,11 +111,15 @@ public class TweetsListenerApplication implements CommandLineRunner {
     private void sendMail(String message) {
         try {
             SimpleMailMessage mailMessage = new SimpleMailMessage();
-            mailMessage.setSubject("Offer XBOX One");
             mailMessage.setTo(mailTo);
+            mailMessage.setReplyTo(env.getProperty("spring.mail.username"));
+            mailMessage.setFrom(env.getProperty("spring.mail.username"));
+            mailMessage.setSubject("XBOX ONE");
             mailMessage.setText(message);
             mailSender.send(mailMessage);
+            metrics.meter("sent.mail.messages.ok").mark();
         } catch (Exception e) {
+            metrics.meter("sent.mail.messages.error").mark();
             log.error("send mail error", e);
         }
     }

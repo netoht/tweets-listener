@@ -1,0 +1,19 @@
+info:
+  version: @project.version@
+
+spring:
+  application:
+    name: TWEETS-LISTENER
+  boot:
+    admin:
+      nofify.to: netoht@gmail.com
+      url: http://localhost:${server.monitor.port:10000}
+  mail:
+    host: smtp.gmail.com
+    port: 465
+    properties:
+      mail.smtp.ssl.enable: true
+
+
+
+
